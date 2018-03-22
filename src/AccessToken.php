@@ -13,9 +13,9 @@ use Illuminate\Support\Arr;
 class AccessToken extends PassportAccessToken
 {
 
-    public function convertToJWT(CryptKey $privateKey)
+   public function convertToJWT(CryptKey $privateKey)
     {
-        $claims = config('jwt-claims');
+        $claims = config('auth');
         $user = $this->getUser();
 
         $builder = (new Builder())
@@ -28,14 +28,17 @@ class AccessToken extends PassportAccessToken
             ->set('scopes', $this->getScopes());
 
         // set user claims
-        foreach($claims['user_claims'] as $key => $claim) {
-            $builder = $builder->set($key, $user->$claim);
+        if(!empty($user)) {
+            foreach($claims['user_claims'] as $key => $claim) {
+                $builder = $builder->set($key, $user->$claim);
+            }
+
+            // set app claims
+            foreach($claims['app_claims'] as $key => $claim) {
+                $builder = $builder->set($key, $claim);
+            }
         }
 
-        // set app claims
-        foreach($claims['app_claims'] as $key => $claim) {
-            $builder = $builder->set($key, $claim);
-        }
 
         // sign and return the token
         return $builder->sign(new Sha256(), new Key($privateKey->getKeyPath(), $privateKey->getPassPhrase()))->getToken();
@@ -49,8 +52,9 @@ class AccessToken extends PassportAccessToken
         if (is_null($model = config('auth.providers.'.$provider.'.model'))) {
             throw new RuntimeException('Unable to determine authentication model from configuration.');
         }
-
-        $user = (new $model)->findOrFail($this->getUserIdentifier());
+        $user = [];
+        if(!empty($this->getUserIdentifier()))
+            $user = (new $model)->findOrFail($this->getUserIdentifier());
 
         return $user;
     }
